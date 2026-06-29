@@ -51,8 +51,11 @@ export class ApiClient {
     if (!res.ok) throw new EngageKaroApiError(res.status, await res.text());
   }
 
-  identify(externalId: string): Promise<void> {
-    return this.request("POST", "/users", { externalId });
+  identify(externalId: string, deviceContext?: Record<string, unknown>): Promise<void> {
+    return this.request("POST", "/users", {
+      externalId,
+      ...(deviceContext ?? {}),
+    });
   }
 
   addSubscription(

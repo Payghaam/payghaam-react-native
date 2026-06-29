@@ -33,6 +33,20 @@ class EngagekaroReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
     resolve(currentToken)
   }
 
+  @objc func getDeviceContext(_ resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+    let locale = Locale.current
+    let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+    resolve([
+      "country": locale.regionCode ?? "",
+      "language": locale.languageCode ?? "",
+      "timezone": TimeZone.current.identifier,
+      "os": "iOS",
+      "osVersion": UIDevice.current.systemVersion,
+      "appVersion": appVersion,
+      "deviceModel": UIDevice.current.model,
+    ])
+  }
+
   @objc func getInitialNotification(_ resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
     resolve(nil)
   }

@@ -1,5 +1,10 @@
 import { NativeEventEmitter, NativeModules, Platform } from "react-native";
 import { ApiClient, EngageKaroConfig, SubscriptionType } from "./api-client";
+import {
+  collectDeviceContext,
+  noteForegroundResume,
+  wireAppStateSession,
+} from "./device-context";
 
 interface EngageKaroNativePush {
   requestPermission(): Promise<boolean>;
@@ -18,10 +23,32 @@ let api: ApiClient | null = null;
 let externalId: string | null = null;
 let consentGiven = true;
 let pendingToken: string | null = null;
+let pushPermission: string | undefined;
 const subs: (() => void)[] = [];
 
 function canSend(): boolean {
   return !!config && !!api && (!config.requireConsent || consentGiven);
+}
+
+async function pingDeviceContext(sessionStart = false): Promise<void> {
+  if (!canSend() || !api || !externalId) return;
+  try {
+    const countSession = sessionStart && noteForegroundResume();
+    const ctx = await collectDeviceContext({
+      sessionStart: countSession,
+      pushPermission,
+    });
+    await api.identify(externalId, ctx as Record<string, unknown>);
+  } catch {
+    // Best-effort device profile sync.
+  }
+}
+
+async function runPostLoginTasks(): Promise<void> {
+  if (!canSend() || !api || !externalId) return;
+  const token = pendingToken ?? (await NativePush?.getToken()) ?? null;
+  if (token) await registerToken(token);
+  await pingDeviceContext(true);
 }
 
 async function registerToken(token: string): Promise<void> {
@@ -68,19 +95,19 @@ export const EngageKaro = {
     api = new ApiClient(cfg);
     consentGiven = !cfg.requireConsent;
     wirePushListeners();
+    subs.push(wireAppStateSession(() => void pingDeviceContext(true)));
     void NativePush?.getInitialNotification().then((n) => {
       if (n) reportFromData(n, "opened");
     });
+    void pingDeviceContext(true);
   },
 
   /** Identify the current user by your backend user id. */
-  async login(id: string, identityHash?: string): Promise<void> {
+  login(id: string, identityHash?: string): void {
     externalId = id;
     if (api) api.identityHash = identityHash;
     if (!canSend() || !api) return;
-    await api.identify(id);
-    const token = pendingToken ?? (await NativePush?.getToken()) ?? null;
-    if (token) await registerToken(token);
+    void runPostLoginTasks();
   },
 
   async logout(): Promise<void> {
@@ -105,9 +132,15 @@ export const EngageKaro = {
   async requestPushPermission(): Promise<boolean> {
     if (!NativePush) return false;
     const granted = await NativePush.requestPermission();
+    pushPermission = granted ? "granted" : "denied";
     if (granted) {
-      const token = await NativePush.getToken();
-      if (token) await registerToken(token);
+      void (async () => {
+        const token = await NativePush.getToken();
+        if (token) await registerToken(token);
+        await pingDeviceContext();
+      })();
+    } else if (externalId) {
+      void pingDeviceContext();
     }
     return granted;
   },

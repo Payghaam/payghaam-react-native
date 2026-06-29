@@ -60,6 +60,27 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun getDeviceContext(promise: Promise) {
+        val locale = ctx.resources.configuration.locales[0]
+        val appVersion = try {
+            ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: ""
+        } catch (_: Exception) {
+            ""
+        }
+        promise.resolve(
+            Arguments.createMap().apply {
+                putString("country", locale.country)
+                putString("language", locale.language)
+                putString("timezone", java.util.TimeZone.getDefault().id)
+                putString("os", "Android")
+                putString("osVersion", Build.VERSION.RELEASE)
+                putString("appVersion", appVersion)
+                putString("deviceModel", Build.MODEL)
+            },
+        )
+    }
+
+    @ReactMethod
     fun getInitialNotification(promise: Promise) {
         promise.resolve(null)
     }

@@ -9,6 +9,9 @@ RCT_EXTERN_METHOD(requestPermission:(RCTPromiseResolveBlock)resolve
 RCT_EXTERN_METHOD(getToken:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(getDeviceContext:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
+
 RCT_EXTERN_METHOD(getInitialNotification:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 
