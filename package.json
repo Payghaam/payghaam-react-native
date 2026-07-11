@@ -1,14 +1,21 @@
 {
   "name": "@engagekaro/react-native",
   "version": "0.1.0",
-  "description": "EngageKaro SDK for React Native — push, identity, tags, and events",
+  "description": "EngageKaro SDK for React Native \u2014 push, identity, tags, and events",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "react-native": "src/index.ts",
-  "files": ["src", "lib", "android", "ios", "engagekaro-react-native.podspec"],
+  "files": [
+    "src",
+    "lib",
+    "android",
+    "ios",
+    "engagekaro-react-native.podspec"
+  ],
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "react": "*",
@@ -18,7 +25,8 @@
     "@types/react": "^18.3.11",
     "react": "^18.3.1",
     "react-native": "^0.76.0",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
   },
   "codegenConfig": {
     "name": "EngagekaroReactNativeSpec",

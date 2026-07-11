@@ -95,7 +95,14 @@ export const EngageKaro = {
     api = new ApiClient(cfg);
     consentGiven = !cfg.requireConsent;
     wirePushListeners();
-    subs.push(wireAppStateSession(() => void pingDeviceContext(true)));
+    // On foreground: session ping + drain anything queued while offline.
+    subs.push(
+      wireAppStateSession(() => {
+        void pingDeviceContext(true);
+        void api?.flushQueue();
+      }),
+    );
+    void api.flushQueue();
     void NativePush?.getInitialNotification().then((n) => {
       if (n) reportFromData(n, "opened");
     });
