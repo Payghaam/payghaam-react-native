@@ -6,6 +6,9 @@ import UserNotifications
 class EngagekaroReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
   private var hasListeners = false
   private var currentToken: String?
+  /// A tap that arrived before JS attached its listeners — i.e. one that launched
+  /// the app from terminated. Drained by getInitialNotification().
+  private var initialNotification: [AnyHashable: Any]?
 
   override static func requiresMainQueueSetup() -> Bool { true }
   override func supportedEvents() -> [String]! { ["onToken", "onOpened", "onForeground"] }
@@ -48,7 +51,9 @@ class EngagekaroReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
   }
 
   @objc func getInitialNotification(_ resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
-    resolve(nil)
+    let payload = initialNotification
+    initialNotification = nil
+    resolve(payload)
   }
 
   @objc func setSharedConfig(_ config: NSDictionary,
@@ -82,8 +87,13 @@ class EngagekaroReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
   func userNotificationCenter(_ center: UNUserNotificationCenter,
                               didReceive response: UNNotificationResponse,
                               withCompletionHandler completionHandler: @escaping () -> Void) {
+    let payload = response.notification.request.content.userInfo
     if hasListeners {
-      sendEvent(withName: "onOpened", body: response.notification.request.content.userInfo)
+      sendEvent(withName: "onOpened", body: payload)
+    } else {
+      // The tap launched the app from terminated, so JS is not listening yet —
+      // hold it for getInitialNotification() rather than dropping it.
+      initialNotification = payload
     }
     completionHandler()
   }

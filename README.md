@@ -33,6 +33,20 @@ override fun getPackages(): List<ReactPackage> =
     PackageList(this).packages.apply { add(EngagekaroReactNativePackage()) }
 ```
 
+- Register the messaging service in `AndroidManifest.xml`. **Required** — EngageKaro
+  sends Android pushes data-only so the SDK can attach the deep link to the tap, and
+  without this service no notification is drawn at all:
+
+```xml
+<service
+    android:name="com.engagekaro.reactnative.EngagekaroReactNativeMessagingService"
+    android:exported="false">
+    <intent-filter>
+        <action android:name="com.google.firebase.MESSAGING_EVENT" />
+    </intent-filter>
+</service>
+```
+
 ## Quick start
 
 ```tsx
@@ -57,6 +71,28 @@ await EngageKaro.shareConfig({
 });
 ```
 
+## Handling taps and deep links
+
+A campaign's **Deep link URL** arrives as `ek_url`, and anything you pass as `data`
+on `POST /api/notifications` arrives alongside it:
+
+```ts
+const unsubscribe = EngageKaro.onNotificationOpened((payload) => {
+  // payload.ek_url    → "myapp://offers/summer"
+  // payload.targetId  → your own data key
+  if (typeof payload.targetId === "string") navigate("Offer", { id: payload.targetId });
+});
+```
+
+If you register **no** handler, the SDK opens `ek_url` itself via `Linking`. Registering
+one suppresses that, so routing — including the deep link — is entirely yours.
+
+A tap that cold-launches the app is replayed to a handler registered shortly after, so
+it is never dropped.
+
+Reserved payload keys: `ek_message_id`, `ek_url`, `ek_image`, `ek_sound`, `ek_opened`,
+and on Android `title` / `body`.
+
 ## API
 
 | Method | Description |
@@ -67,6 +103,7 @@ await EngageKaro.shareConfig({
 | `trackEvent(name, properties?)` | Track event |
 | `addTag` / `addTags` | User tags |
 | `requestPushPermission()` | OS prompt + token registration |
+| `onNotificationOpened(handler)` | Notification taps; returns an unsubscribe fn |
 | `shareConfig(...)` | iOS App Group for NSE |
 
 ## Architecture

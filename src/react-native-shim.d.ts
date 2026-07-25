@@ -8,6 +8,10 @@ declare module "react-native" {
     OS: "ios" | "android" | "web";
     Version: string | number;
   };
+  export const Linking: {
+    openURL(url: string): Promise<unknown>;
+    canOpenURL(url: string): Promise<boolean>;
+  };
   export type AppStateStatus = "active" | "background" | "inactive" | "unknown" | "extension";
   export const AppState: {
     currentState: AppStateStatus;

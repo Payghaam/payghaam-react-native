@@ -1,6 +1,8 @@
 package com.engagekaro.reactnative
 
 import android.Manifest
+import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.ActivityCompat
@@ -13,11 +15,33 @@ import com.google.firebase.messaging.FirebaseMessaging
 
 /** Native push bridge for React Native — FCM on Android, mirrors Flutter plugin channels. */
 class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
-    ReactContextBaseJavaModule(ctx), PermissionListener {
+    ReactContextBaseJavaModule(ctx), PermissionListener, ActivityEventListener {
 
     private var pendingPermission: Promise? = null
 
+    init {
+        instance = this
+        ctx.addActivityEventListener(this)
+    }
+
     override fun getName() = "EngagekaroReactNative"
+
+    override fun invalidate() {
+        ctx.removeActivityEventListener(this)
+        if (instance === this) instance = null
+        super.invalidate()
+    }
+
+    // A tap on an already-running app arrives here (the launcher activity is
+    // singleTop/singleTask), not through the launch intent.
+    override fun onNewIntent(intent: Intent?) {
+        val payload = EngagekaroNotifications.payloadFrom(intent) ?: return
+        emit("onOpened", payload)
+    }
+
+    override fun onActivityResult(activity: Activity?, requestCode: Int, resultCode: Int, data: Intent?) {
+        // Not used; required by ActivityEventListener.
+    }
 
     @ReactMethod
     fun requestPermission(promise: Promise) {
@@ -80,9 +104,10 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
         )
     }
 
+    /** The tap that cold-launched the app, read once from the launcher intent. */
     @ReactMethod
     fun getInitialNotification(promise: Promise) {
-        promise.resolve(null)
+        promise.resolve(EngagekaroNotifications.payloadFrom(currentActivity?.intent))
     }
 
     @ReactMethod
@@ -90,12 +115,38 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
         promise.resolve(null)
     }
 
-    fun emitToken(token: String) {
+    // Required by NativeEventEmitter on iOS-parity RN versions; no-ops here since
+    // events are emitted through RCTDeviceEventEmitter.
+    @ReactMethod
+    fun addListener(eventName: String) = Unit
+
+    @ReactMethod
+    fun removeListeners(count: Int) = Unit
+
+    private fun emit(event: String, payload: Any?) {
+        if (!ctx.hasActiveReactInstance()) return
         ctx.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-            .emit("onToken", token)
+            .emit(event, payload)
     }
 
     companion object {
         const val PERMISSION_CODE = 0xE001
+
+        /**
+         * The live module, if the bridge is up. The FCM service runs in the app
+         * process but outside the bridge's lifecycle — when a push revives a killed
+         * process there may be no module to emit through, in which case the JS side
+         * picks the tap up later via getInitialNotification().
+         */
+        @Volatile
+        private var instance: EngagekaroReactNativeModule? = null
+
+        fun emitToken(token: String) {
+            instance?.emit("onToken", token)
+        }
+
+        fun emitForeground(data: Map<String, String>) {
+            instance?.emit("onForeground", EngagekaroNotifications.asWritableMap(data))
+        }
     }
 }
