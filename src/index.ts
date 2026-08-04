@@ -1,5 +1,5 @@
 import { Linking, NativeEventEmitter, NativeModules, Platform } from "react-native";
-import { ApiClient, EngageKaroConfig, SubscriptionType } from "./api-client";
+import { ApiClient, EngageKaroApiError, EngageKaroConfig, SubscriptionType } from "./api-client";
 import {
   collectDeviceContext,
   noteForegroundResume,
@@ -11,6 +11,34 @@ interface EngageKaroNativePush {
   getToken(): Promise<string | null>;
   getInitialNotification(): Promise<Record<string, unknown> | null>;
   setSharedConfig(config: Record<string, string>): Promise<void>;
+  // ── Cross-platform API bridge (sdk-native-wrapper-design.md §4.5) ─────────
+  // Proxies a single call through the canonical native SDK's ApiClient +
+  // offline queue. Falls back to `ApiClient` below (the `fetch`-based
+  // implementation) if this native module isn't present at all — e.g. a
+  // JS-only test harness, or Expo Go without a custom dev client.
+  apiSync(config: {
+    apiKey: string;
+    baseUrl: string;
+    externalId?: string;
+    identityHash?: string;
+  }): Promise<void>;
+  apiClearIdentity(): Promise<void>;
+  apiIdentify(args: { deviceContext?: Record<string, unknown> }): Promise<void>;
+  apiAddSubscription(args: {
+    type: SubscriptionType;
+    token: string;
+    deviceModel?: string;
+    deviceOs?: string;
+    appVersion?: string;
+  }): Promise<void>;
+  apiUpdateTags(args: { tags: Record<string, unknown> }): Promise<void>;
+  apiTrack(args: { name: string; properties?: Record<string, unknown> }): Promise<void>;
+  apiReportReceipt(args: {
+    messageId: string;
+    event: string;
+    properties?: Record<string, unknown>;
+  }): Promise<void>;
+  apiFlushQueue(): Promise<void>;
 }
 
 const NativePush: EngageKaroNativePush | undefined =
@@ -19,6 +47,8 @@ const NativePush: EngageKaroNativePush | undefined =
 const emitter = NativePush ? new NativeEventEmitter(NativeModules.EngagekaroReactNative) : null;
 
 let config: EngageKaroConfig | null = null;
+// HTTP fallback, used only where there's no native SDK to delegate to (see
+// EngageKaroNativePush above).
 let api: ApiClient | null = null;
 let externalId: string | null = null;
 let consentGiven = true;
@@ -42,45 +72,78 @@ let bufferedOpened: NotificationPayload | null = null;
 const OPENED_HANDLER_GRACE_MS = 400;
 
 function canSend(): boolean {
-  return !!config && !!api && (!config.requireConsent || consentGiven);
+  return !!config && (!config.requireConsent || consentGiven);
+}
+
+/**
+ * Runs a native-bridge call when the native module is present, converting its
+ * `engagekaro_api_error` rejection into an `EngageKaroApiError`; falls back to
+ * the `fetch`-based `ApiClient` when there's no native module at all. Native's
+ * `sendOrQueue` already swallows retryable failures (parks them in its own
+ * offline queue), so a rejection here means a non-retryable one (e.g. a 4xx).
+ */
+async function callApi(nativeCall: () => Promise<void>, httpFallback: () => Promise<void>): Promise<void> {
+  // NativePush is checked here (not by the caller) so `nativeCall` closures can
+  // safely use `NativePush!` — by the time this actually invokes `nativeCall()`,
+  // the module-level binding is known non-null.
+  if (!NativePush) return httpFallback();
+  try {
+    await nativeCall();
+  } catch (err: unknown) {
+    const e = err as { code?: string; message?: string; userInfo?: { statusCode?: number }; statusCode?: number };
+    if (e?.code === "engagekaro_api_error") {
+      const statusCode = e.userInfo?.statusCode ?? e.statusCode ?? 0;
+      throw new EngageKaroApiError(statusCode, e.message ?? "");
+    }
+    throw err;
+  }
 }
 
 async function pingDeviceContext(sessionStart = false): Promise<void> {
-  if (!canSend() || !api || !externalId) return;
+  if (!canSend() || !externalId) return;
   try {
     const countSession = sessionStart && noteForegroundResume();
     const ctx = await collectDeviceContext({
       sessionStart: countSession,
       pushPermission,
     });
-    await api.identify(externalId, ctx as Record<string, unknown>);
+    await callApi(
+      () => NativePush!.apiIdentify({ deviceContext: ctx as Record<string, unknown> }),
+      () => api!.identify(externalId!, ctx as Record<string, unknown>),
+    );
   } catch {
     // Best-effort device profile sync.
   }
 }
 
 async function runPostLoginTasks(): Promise<void> {
-  if (!canSend() || !api || !externalId) return;
+  if (!canSend() || !externalId) return;
   const token = pendingToken ?? (await NativePush?.getToken()) ?? null;
   if (token) await registerToken(token);
   await pingDeviceContext(true);
 }
 
 async function registerToken(token: string): Promise<void> {
-  if (!canSend() || !api) return;
+  if (!canSend()) return;
   if (!externalId) {
     pendingToken = token;
     return;
   }
   const type: SubscriptionType = Platform.OS === "ios" ? "IOS_PUSH" : "ANDROID_PUSH";
-  await api.addSubscription(externalId, type, token);
+  await callApi(
+    () => NativePush!.apiAddSubscription({ type, token }),
+    () => api!.addSubscription(externalId!, type, token),
+  );
   pendingToken = null;
 }
 
 function reportFromData(data: Record<string, unknown>, event: string): void {
   const messageId = data.ek_message_id;
-  if (typeof messageId !== "string" || !messageId || !api || !canSend()) return;
-  void api.reportReceipt(messageId, event, externalId ?? undefined, data);
+  if (typeof messageId !== "string" || !messageId || !canSend()) return;
+  void callApi(
+    () => NativePush!.apiReportReceipt({ messageId, event, properties: data }),
+    () => api!.reportReceipt(messageId, event, externalId ?? undefined, data),
+  );
 }
 
 /** `ek_url` if the payload carries a usable deep link. */
@@ -147,14 +210,20 @@ export const EngageKaro = {
     config = cfg;
     api = new ApiClient(cfg);
     consentGiven = !cfg.requireConsent;
+    // Mirror config/identity into the native bridge (see EngageKaroNativePush
+    // above) so apiIdentify/apiTrack/etc. work without a separate "did you call
+    // login() yet" state machine on the native side.
+    void NativePush?.apiSync({ apiKey: cfg.apiKey, baseUrl: cfg.baseUrl, externalId: externalId ?? undefined });
     wirePushListeners();
     // On foreground: session ping + drain anything queued while offline.
     subs.push(
       wireAppStateSession(() => {
         void pingDeviceContext(true);
+        void NativePush?.apiFlushQueue();
         void api?.flushQueue();
       }),
     );
+    void NativePush?.apiFlushQueue();
     void api.flushQueue();
     void NativePush?.getInitialNotification().then((n) => {
       if (n) void dispatchOpened(n, true);
@@ -194,18 +263,25 @@ export const EngageKaro = {
   login(id: string, identityHash?: string): void {
     externalId = id;
     if (api) api.identityHash = identityHash;
-    if (!canSend() || !api) return;
+    if (config) {
+      void NativePush?.apiSync({ apiKey: config.apiKey, baseUrl: config.baseUrl, externalId: id, identityHash });
+    }
+    if (!canSend()) return;
     void runPostLoginTasks();
   },
 
   async logout(): Promise<void> {
     externalId = null;
     if (api) api.identityHash = undefined;
+    await NativePush?.apiClearIdentity();
   },
 
   async trackEvent(name: string, properties?: Record<string, unknown>): Promise<void> {
-    if (!canSend() || !api) return;
-    await api.track(name, externalId ?? undefined, properties);
+    if (!canSend()) return;
+    await callApi(
+      () => NativePush!.apiTrack({ name, properties }),
+      () => api!.track(name, externalId ?? undefined, properties),
+    );
   },
 
   async addTag(key: string, value: unknown): Promise<void> {
@@ -213,8 +289,11 @@ export const EngageKaro = {
   },
 
   async addTags(tags: Record<string, unknown>): Promise<void> {
-    if (!canSend() || !api || !externalId) throw new Error("Call login() first");
-    await api.updateTags(externalId, tags);
+    if (!canSend() || !externalId) throw new Error("Call login() first");
+    await callApi(
+      () => NativePush!.apiUpdateTags({ tags }),
+      () => api!.updateTags(externalId!, tags),
+    );
   },
 
   async requestPushPermission(): Promise<boolean> {
@@ -231,6 +310,21 @@ export const EngageKaro = {
       void pingDeviceContext();
     }
     return granted;
+  },
+
+  /** Current push token (FCM on Android, APNs on iOS), or null if not yet available. */
+  async getToken(): Promise<string | null> {
+    if (!NativePush) return null;
+    return NativePush.getToken();
+  },
+
+  /** Fires whenever the platform issues a new/rotated push token. Returns an unsubscribe function. */
+  onTokenRefresh(handler: (token: string) => void): () => void {
+    if (!emitter) return () => {};
+    const sub = emitter.addListener("onToken", (token: unknown) => {
+      if (typeof token === "string") handler(token);
+    });
+    return sub.remove;
   },
 
   /** iOS: share config with Notification Service Extension via App Group. */

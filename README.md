@@ -2,7 +2,10 @@
 
 EngageKaro SDK for React Native — identify users, register push tokens, set tags, and track events.
 
-Push uses **native modules** (APNs on iOS, FCM on Android). API calls run in JavaScript via `fetch`.
+Push uses **native modules** (APNs on iOS, FCM on Android). API calls (identify,
+tags, events, receipts) also delegate to the native module on iOS/Android —
+JavaScript's `fetch`-based client only runs as a fallback when no native module
+is present.
 
 ## Install
 
@@ -46,6 +49,22 @@ override fun getPackages(): List<ReactPackage> =
     </intent-filter>
 </service>
 ```
+
+- This module depends on `com.engagekaro:engagekaro` (the native Android SDK at
+  `sdks/android`) instead of reimplementing push handling itself. Point your app's
+  `android/settings.gradle` (or `.kts`) at it with a composite build + dependency
+  substitution — adjust the relative path to wherever you've checked out this repo:
+
+```groovy
+includeBuild("../../node_modules/@engagekaro/react-native/../../sdks/android") {
+    dependencySubstitution {
+        substitute(module("com.engagekaro:engagekaro")).using(project(":engagekaro"))
+    }
+}
+```
+
+  (Once the SDKs are published, this composite build goes away — `com.engagekaro:engagekaro`
+  resolves from a Maven repo like any other dependency. See sdk-native-wrapper-design.md.)
 
 ## Quick start
 
@@ -108,7 +127,24 @@ and on Android `title` / `body`.
 
 ## Architecture
 
-- **JS layer** — REST client for `/api/sdk/*` (same endpoints as Flutter SDK)
-- **Native module** — push permission, token events, notification open/foreground callbacks
+This module is a thin wrapper over the canonical native SDKs (`sdks/ios`,
+`sdks/android`) rather than its own implementation — see
+`sdk-native-wrapper-design.md` at the repo root for the full design.
+
+- **iOS/Android** — `initialize`/`login`/`trackEvent`/`addTag(s)`/push
+  registration/receipt reporting all delegate to the native SDK's `ApiClient` +
+  offline queue via the native module (`apiSync`, `apiIdentify`, `apiTrack`,
+  etc.), instead of JS making its own HTTP calls. JS still owns tap dispatch,
+  deep-link fallback, and foreground timing — deliberately, so those don't get
+  double-handled by both the native SDK's own machinery and this module's.
+  Notification drawing on Android also delegates to the canonical SDK
+  (`com.engagekaro.sdk.EngageKaro`) rather than reimplementing it. One gap
+  remains: native `delivered` reporting when the Android app is fully killed
+  and no JS bridge is alive — flagged in sdk-native-wrapper-design.md as a
+  follow-up, not yet closed.
+- **No native module present** (e.g. a JS-only test harness) — every native
+  bridge call falls back to `ApiClient` (the `fetch`-based implementation in
+  `src/api-client.ts`), so the SDK still works without one, just without
+  offline queueing shared with native.
 
 See also: [Flutter SDK](../flutter/README.md) if you prefer Dart, or native [Android](../android/README.md) / [iOS](../ios/README.md) SDKs.

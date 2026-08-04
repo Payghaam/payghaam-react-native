@@ -14,5 +14,9 @@ android {
 
 dependencies {
     implementation "com.facebook.react:react-native:+"
-    implementation "com.google.firebase:firebase-messaging:24.0.0"
+    // Canonical native SDK (sdks/android). Consuming apps must add a composite
+    // build + dependency substitution for "com.engagekaro:engagekaro" to their own
+    // android/settings.gradle — see sdks/react-native/README.md and
+    // sdk-native-wrapper-design.md. Brings in firebase-messaging transitively.
+    implementation "com.engagekaro:engagekaro"
 }

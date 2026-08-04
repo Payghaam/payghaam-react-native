@@ -27,10 +27,5 @@
     "react-native": "^0.76.0",
     "typescript": "^5.6.3",
     "vitest": "^3.2.4"
-  },
-  "codegenConfig": {
-    "name": "EngagekaroReactNativeSpec",
-    "type": "modules",
-    "jsSrcsDir": "src"
   }
 }

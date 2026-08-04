@@ -7,17 +7,26 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.engagekaro.sdk.EngageKaro
+import com.engagekaro.sdk.EngageKaroApiException
+import com.engagekaro.sdk.SubscriptionType
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.modules.core.PermissionAwareActivity
 import com.facebook.react.modules.core.PermissionListener
 import com.google.firebase.messaging.FirebaseMessaging
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /** Native push bridge for React Native — FCM on Android, mirrors Flutter plugin channels. */
 class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
     ReactContextBaseJavaModule(ctx), PermissionListener, ActivityEventListener {
 
     private var pendingPermission: Promise? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     init {
         instance = this
@@ -29,6 +38,7 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
     override fun invalidate() {
         ctx.removeActivityEventListener(this)
         if (instance === this) instance = null
+        scope.cancel()
         super.invalidate()
     }
 
@@ -66,7 +76,7 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
     }
 
     override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+        requestCode: Int, permissions: Array<String>, grantResults: IntArray
     ): Boolean {
         if (requestCode != PERMISSION_CODE) return false
         val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
@@ -110,9 +120,132 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
         promise.resolve(EngagekaroNotifications.payloadFrom(currentActivity?.intent))
     }
 
+    /**
+     * Persists config for headless FCM handling by delegating to the canonical SDK
+     * ([EngageKaro.persistBridgeConfig]) — see sdk-native-wrapper-design.md. Was
+     * previously a no-op; `shareConfig()` on the JS side had never actually done
+     * anything on Android.
+     */
     @ReactMethod
     fun setSharedConfig(config: ReadableMap, promise: Promise) {
+        val apiBase = if (config.hasKey("apiBase")) config.getString("apiBase") else null
+        val apiKey = if (config.hasKey("apiKey")) config.getString("apiKey") else null
+        if (apiBase != null && apiKey != null) {
+            EngageKaro.persistBridgeConfig(
+                context = ctx,
+                apiKey = apiKey,
+                baseUrl = apiBase,
+                externalId = if (config.hasKey("externalId")) config.getString("externalId") else null,
+                identityHash = if (config.hasKey("identityHash")) config.getString("identityHash") else null,
+            )
+        }
         promise.resolve(null)
+    }
+
+    // ── Cross-platform API bridge (sdk-native-wrapper-design.md §4.5) ──────────
+    // Proxies a single call through the canonical ApiClient + offline queue,
+    // replacing this module's old `fetch`-based ApiClient in the JS layer.
+
+    @ReactMethod
+    fun apiSync(config: ReadableMap, promise: Promise) {
+        val apiKey = if (config.hasKey("apiKey")) config.getString("apiKey") else null
+        val baseUrl = if (config.hasKey("baseUrl")) config.getString("baseUrl") else null
+        if (apiKey != null && baseUrl != null) {
+            EngageKaro.persistBridgeConfig(
+                context = ctx,
+                apiKey = apiKey,
+                baseUrl = baseUrl,
+                externalId = if (config.hasKey("externalId")) config.getString("externalId") else null,
+                identityHash = if (config.hasKey("identityHash")) config.getString("identityHash") else null,
+            )
+        }
+        promise.resolve(null)
+    }
+
+    @ReactMethod
+    fun apiClearIdentity(promise: Promise) {
+        EngageKaro.clearBridgeIdentity(ctx)
+        promise.resolve(null)
+    }
+
+    @ReactMethod
+    fun apiIdentify(args: ReadableMap?, promise: Promise) {
+        val deviceContext = args?.getMap("deviceContext")?.toHashMap()
+        bridgeCall(promise) { EngageKaro.bridgeIdentify(deviceContext) }
+    }
+
+    @ReactMethod
+    fun apiAddSubscription(args: ReadableMap, promise: Promise) {
+        val type = if (args.hasKey("type")) args.getString("type") else null
+        val token = if (args.hasKey("token")) args.getString("token") else null
+        if (type == null || token == null) {
+            promise.resolve(null)
+            return
+        }
+        bridgeCall(promise) {
+            EngageKaro.bridgeAddSubscription(
+                SubscriptionType.valueOf(type),
+                token,
+                if (args.hasKey("deviceModel")) args.getString("deviceModel") else null,
+                if (args.hasKey("deviceOs")) args.getString("deviceOs") else null,
+                if (args.hasKey("appVersion")) args.getString("appVersion") else null,
+            )
+        }
+    }
+
+    @ReactMethod
+    fun apiUpdateTags(args: ReadableMap, promise: Promise) {
+        val tags = args.getMap("tags")?.toHashMap() ?: emptyMap<String, Any?>()
+        bridgeCall(promise) { EngageKaro.addTags(tags) }
+    }
+
+    @ReactMethod
+    fun apiTrack(args: ReadableMap, promise: Promise) {
+        val name = if (args.hasKey("name")) args.getString("name") else null
+        if (name == null) {
+            promise.resolve(null)
+            return
+        }
+        val properties = args.getMap("properties")?.toHashMap()
+        bridgeCall(promise) { EngageKaro.trackEvent(name, properties) }
+    }
+
+    @ReactMethod
+    fun apiReportReceipt(args: ReadableMap, promise: Promise) {
+        val messageId = if (args.hasKey("messageId")) args.getString("messageId") else null
+        val event = if (args.hasKey("event")) args.getString("event") else null
+        if (messageId == null || event == null) {
+            promise.resolve(null)
+            return
+        }
+        val properties = args.getMap("properties")?.toHashMap()
+        bridgeCall(promise) { EngageKaro.reportPushReceipt(messageId, event, properties) }
+    }
+
+    @ReactMethod
+    fun apiFlushQueue(promise: Promise) {
+        bridgeCall(promise) { EngageKaro.bridgeFlushQueue() }
+    }
+
+    /**
+     * Runs [block] off the main thread, resolving [promise] on completion.
+     * `sendOrQueue` inside the canonical SDK already swallows retryable failures
+     * (parks them in the offline queue), so this only ever rejects for a
+     * non-retryable one (e.g. a 4xx) — JS wraps that back into
+     * `EngageKaroApiError`. `Promise` is safe to resolve/reject from any thread.
+     */
+    private fun bridgeCall(promise: Promise, block: suspend () -> Unit) {
+        scope.launch {
+            try {
+                block()
+                promise.resolve(null)
+            } catch (t: Throwable) {
+                val info = Arguments.createMap().apply {
+                    (t as? EngageKaroApiException)?.let { putInt("statusCode", it.statusCode) }
+                }
+                promise.reject("engagekaro_api_error", t.message ?: t.toString(), info)
+            }
+        }
     }
 
     // Required by NativeEventEmitter on iOS-parity RN versions; no-ops here since
