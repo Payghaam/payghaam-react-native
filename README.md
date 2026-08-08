@@ -1,6 +1,6 @@
-# @engagekaro/react-native
+# @payghaam/react-native
 
-EngageKaro SDK for React Native — identify users, register push tokens, set tags, and track events.
+Payghaam SDK for React Native — identify users, register push tokens, set tags, and track events.
 
 Push uses **native modules** (APNs on iOS, FCM on Android). API calls (identify,
 tags, events, receipts) also delegate to the native module on iOS/Android —
@@ -10,7 +10,7 @@ is present.
 ## Install
 
 ```bash
-npm install @engagekaro/react-native
+npm install @payghaam/react-native
 # or link locally:
 npm install ../sdks/react-native
 ```
@@ -30,19 +30,19 @@ cd ios && pod install
 - Register the package in `MainApplication`:
 
 ```kotlin
-import com.engagekaro.reactnative.EngagekaroReactNativePackage
+import com.payghaam.reactnative.PayghaamReactNativePackage
 
 override fun getPackages(): List<ReactPackage> =
-    PackageList(this).packages.apply { add(EngagekaroReactNativePackage()) }
+    PackageList(this).packages.apply { add(PayghaamReactNativePackage()) }
 ```
 
-- Register the messaging service in `AndroidManifest.xml`. **Required** — EngageKaro
+- Register the messaging service in `AndroidManifest.xml`. **Required** — Payghaam
   sends Android pushes data-only so the SDK can attach the deep link to the tap, and
   without this service no notification is drawn at all:
 
 ```xml
 <service
-    android:name="com.engagekaro.reactnative.EngagekaroReactNativeMessagingService"
+    android:name="com.payghaam.reactnative.PayghaamReactNativeMessagingService"
     android:exported="false">
     <intent-filter>
         <action android:name="com.google.firebase.MESSAGING_EVENT" />
@@ -50,40 +50,40 @@ override fun getPackages(): List<ReactPackage> =
 </service>
 ```
 
-- This module depends on `com.engagekaro:engagekaro` (the native Android SDK at
+- This module depends on `com.payghaam:payghaam` (the native Android SDK at
   `sdks/android`) instead of reimplementing push handling itself. Point your app's
   `android/settings.gradle` (or `.kts`) at it with a composite build + dependency
   substitution — adjust the relative path to wherever you've checked out this repo:
 
 ```groovy
-includeBuild("../../node_modules/@engagekaro/react-native/../../sdks/android") {
+includeBuild("../../node_modules/@payghaam/react-native/../../sdks/android") {
     dependencySubstitution {
-        substitute(module("com.engagekaro:engagekaro")).using(project(":engagekaro"))
+        substitute(module("com.payghaam:payghaam")).using(project(":payghaam"))
     }
 }
 ```
 
-  (Once the SDKs are published, this composite build goes away — `com.engagekaro:engagekaro`
+  (Once the SDKs are published, this composite build goes away — `com.payghaam:payghaam`
   resolves from a Maven repo like any other dependency. See sdk-native-wrapper-design.md.)
 
 ## Quick start
 
 ```tsx
-import { EngageKaro } from "@engagekaro/react-native";
+import { Payghaam } from "@payghaam/react-native";
 
-EngageKaro.initialize({
+Payghaam.initialize({
   appId: "YOUR_PROJECT_ID",
   apiKey: "ek_client_...",
   baseUrl: "https://api.yourhost.com",
 });
 
-await EngageKaro.login("user-123");
-await EngageKaro.requestPushPermission();
-await EngageKaro.trackEvent("app_open");
+await Payghaam.login("user-123");
+await Payghaam.requestPushPermission();
+await Payghaam.trackEvent("app_open");
 
 // iOS NSE config (optional):
-await EngageKaro.shareConfig({
-  appGroup: "group.com.yourcompany.app.engagekaro",
+await Payghaam.shareConfig({
+  appGroup: "group.com.yourcompany.app.payghaam",
   apiBase: "https://api.yourhost.com",
   apiKey: "ek_client_...",
   externalId: "user-123",
@@ -96,7 +96,7 @@ A campaign's **Deep link URL** arrives as `ek_url`, and anything you pass as `da
 on `POST /api/notifications` arrives alongside it:
 
 ```ts
-const unsubscribe = EngageKaro.onNotificationOpened((payload) => {
+const unsubscribe = Payghaam.onNotificationOpened((payload) => {
   // payload.ek_url    → "myapp://offers/summer"
   // payload.targetId  → your own data key
   if (typeof payload.targetId === "string") navigate("Offer", { id: payload.targetId });
@@ -138,7 +138,7 @@ This module is a thin wrapper over the canonical native SDKs (`sdks/ios`,
   deep-link fallback, and foreground timing — deliberately, so those don't get
   double-handled by both the native SDK's own machinery and this module's.
   Notification drawing on Android also delegates to the canonical SDK
-  (`com.engagekaro.sdk.EngageKaro`) rather than reimplementing it. One gap
+  (`com.payghaam.sdk.Payghaam`) rather than reimplementing it. One gap
   remains: native `delivered` reporting when the Android app is fully killed
   and no JS bridge is alive — flagged in sdk-native-wrapper-design.md as a
   follow-up, not yet closed.

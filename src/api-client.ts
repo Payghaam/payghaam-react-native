@@ -7,7 +7,7 @@ export type SubscriptionType =
 
 import { OfflineQueue, QueueStorage, QueuedOp, isRetryable } from "./offline-queue";
 
-export interface EngageKaroConfig {
+export interface PayghaamConfig {
   appId: string;
   apiKey: string;
   baseUrl: string;
@@ -19,12 +19,12 @@ export interface EngageKaroConfig {
   storage?: QueueStorage;
 }
 
-export class EngageKaroApiError extends Error {
+export class PayghaamApiError extends Error {
   constructor(
     public statusCode: number,
     public body: string,
   ) {
-    super(`EngageKaroApiError(${statusCode}): ${body}`);
+    super(`PayghaamApiError(${statusCode}): ${body}`);
   }
 }
 
@@ -36,7 +36,7 @@ export class ApiClient {
   identityHash?: string;
   readonly queue: OfflineQueue;
 
-  constructor(private readonly config: EngageKaroConfig) {
+  constructor(private readonly config: PayghaamConfig) {
     this.queue = new OfflineQueue(
       (op: QueuedOp) => this.request(op.method, op.path, op.body),
       config.storage,
@@ -49,7 +49,7 @@ export class ApiClient {
       Authorization: `Bearer ${this.config.apiKey}`,
       "X-Api-Key": this.config.apiKey,
     };
-    if (this.identityHash) h["X-Engagekaro-Identity-Hash"] = this.identityHash;
+    if (this.identityHash) h["X-Payghaam-Identity-Hash"] = this.identityHash;
     return h;
   }
 
@@ -60,7 +60,7 @@ export class ApiClient {
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(this.config.timeoutMs ?? 15_000),
     });
-    if (!res.ok) throw new EngageKaroApiError(res.status, await res.text());
+    if (!res.ok) throw new PayghaamApiError(res.status, await res.text());
   }
 
   // Fire-and-forget path: try to send immediately; on a retryable failure

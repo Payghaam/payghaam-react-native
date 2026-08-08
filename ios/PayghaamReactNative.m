@@ -1,7 +1,7 @@
 #import <React/RCTBridgeModule.h>
 #import <React/RCTEventEmitter.h>
 
-@interface RCT_EXTERN_MODULE(EngagekaroReactNative, RCTEventEmitter)
+@interface RCT_EXTERN_MODULE(PayghaamReactNative, RCTEventEmitter)
 
 RCT_EXTERN_METHOD(requestPermission:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)

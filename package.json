@@ -1,7 +1,7 @@
 {
-  "name": "@engagekaro/react-native",
+  "name": "@payghaam/react-native",
   "version": "0.1.0",
-  "description": "EngageKaro SDK for React Native \u2014 push, identity, tags, and events",
+  "description": "Payghaam SDK for React Native \u2014 push, identity, tags, and events",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "react-native": "src/index.ts",
@@ -10,7 +10,7 @@
     "lib",
     "android",
     "ios",
-    "engagekaro-react-native.podspec"
+    "payghaam-react-native.podspec"
   ],
   "scripts": {
     "build": "tsc",

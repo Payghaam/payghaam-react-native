@@ -1,10 +1,10 @@
-import EngageKaro
+import Payghaam
 import Foundation
 import React
 import UserNotifications
 
-@objc(EngagekaroReactNative)
-class EngagekaroReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
+@objc(PayghaamReactNative)
+class PayghaamReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
   private var hasListeners = false
   private var currentToken: String?
   /// A tap that arrived before JS attached its listeners — i.e. one that launched
@@ -41,10 +41,10 @@ class EngagekaroReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
     // Delegates to the canonical SDK (sdks/ios) instead of duplicating the
     // locale/UIDevice snapshot — see sdk-native-wrapper-design.md. JS always
     // overwrites `sdkVersion` with its own SDK_VERSION, so the value from
-    // here is ignored regardless. `EngageKaro` is @MainActor; assumeIsolated
+    // here is ignored regardless. `Payghaam` is @MainActor; assumeIsolated
     // is safe because requiresMainQueueSetup() guarantees this already runs
     // on the main thread.
-    let snapshot = MainActor.assumeIsolated { EngageKaro.deviceContextSnapshot() }
+    let snapshot = MainActor.assumeIsolated { Payghaam.deviceContextSnapshot() }
     resolve(snapshot)
   }
 
@@ -67,11 +67,11 @@ class EngagekaroReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
     // Delegates to the canonical SDK (sdks/ios) instead of writing the App
     // Group UserDefaults keys directly — its `ek_*` scheme already matches
     // what this module used to write by hand, so this is a drop-in swap. See
-    // sdk-native-wrapper-design.md. `EngageKaro` is @MainActor; assumeIsolated
+    // sdk-native-wrapper-design.md. `Payghaam` is @MainActor; assumeIsolated
     // is safe because requiresMainQueueSetup() guarantees this already runs
     // on the main thread.
     MainActor.assumeIsolated {
-      EngageKaro.shared.shareConfig(
+      Payghaam.shared.shareConfig(
         appGroup: appGroup, apiBase: apiBase, apiKey: apiKey, externalId: externalId
       )
     }
@@ -93,7 +93,7 @@ class EngagekaroReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
                      reject: RCTPromiseRejectBlock) {
     if let apiKey = config["apiKey"] as? String, let baseUrl = config["baseUrl"] as? String {
       MainActor.assumeIsolated {
-        EngageKaro.shared.persistBridgeConfig(
+        Payghaam.shared.persistBridgeConfig(
           apiKey: apiKey,
           baseUrl: baseUrl,
           externalId: config["externalId"] as? String,
@@ -105,7 +105,7 @@ class EngagekaroReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
   }
 
   @objc func apiClearIdentity(_ resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
-    MainActor.assumeIsolated { EngageKaro.shared.clearBridgeIdentity() }
+    MainActor.assumeIsolated { Payghaam.shared.clearBridgeIdentity() }
     resolve(nil)
   }
 
@@ -115,7 +115,7 @@ class EngagekaroReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
     let deviceContext = args?["deviceContext"] as? [String: Any]
     Task {
       do {
-        try await EngageKaro.shared.bridgeIdentify(deviceContext: deviceContext)
+        try await Payghaam.shared.bridgeIdentify(deviceContext: deviceContext)
         resolve(nil)
       } catch {
         Self.reject(reject, error)
@@ -134,7 +134,7 @@ class EngagekaroReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
     }
     Task {
       do {
-        try await EngageKaro.shared.bridgeAddSubscription(type: type, token: token)
+        try await Payghaam.shared.bridgeAddSubscription(type: type, token: token)
         resolve(nil)
       } catch {
         Self.reject(reject, error)
@@ -148,7 +148,7 @@ class EngagekaroReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
     let raw = args["tags"] as? [String: Any] ?? [:]
     Task {
       do {
-        try await EngageKaro.shared.addTags(Self.nilCoalesced(raw))
+        try await Payghaam.shared.addTags(Self.nilCoalesced(raw))
         resolve(nil)
       } catch {
         Self.reject(reject, error)
@@ -166,7 +166,7 @@ class EngagekaroReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
     let properties = args["properties"] as? [String: Any]
     Task {
       do {
-        try await EngageKaro.shared.trackEvent(name, properties: properties)
+        try await Payghaam.shared.trackEvent(name, properties: properties)
         resolve(nil)
       } catch {
         Self.reject(reject, error)
@@ -183,21 +183,21 @@ class EngagekaroReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
     }
     let properties = args["properties"] as? [String: Any]
     Task {
-      await EngageKaro.shared.reportPushReceipt(messageId: messageId, event: event, properties: properties)
+      await Payghaam.shared.reportPushReceipt(messageId: messageId, event: event, properties: properties)
       resolve(nil)
     }
   }
 
   @objc func apiFlushQueue(_ resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     Task {
-      await EngageKaro.shared.bridgeFlushQueue()
+      await Payghaam.shared.bridgeFlushQueue()
       resolve(nil)
     }
   }
 
   /// Converts an RN-bridged `[String: Any]` (where a JS `null` value arrives
   /// as `NSNull`, not Swift `nil`) into `[String: Any?]` so
-  /// `EngageKaro.addTags` sees real `nil`s for tag removal.
+  /// `Payghaam.addTags` sees real `nil`s for tag removal.
   private static func nilCoalesced(_ dict: [String: Any]) -> [String: Any?] {
     var out: [String: Any?] = [:]
     for (k, v) in dict {
@@ -213,21 +213,21 @@ class EngagekaroReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
   /// `sendOrQueue` inside the canonical SDK already swallows retryable failures
   /// (parks them in the offline queue), so this only ever rejects for a
   /// non-retryable one (e.g. a 4xx) — JS wraps that back into
-  /// `EngageKaroApiError`. The `userInfo` map carries the status code so JS
+  /// `PayghaamApiError`. The `userInfo` map carries the status code so JS
   /// doesn't have to parse it out of the message.
   private static func reject(_ reject: RCTPromiseRejectBlock, _ error: Error) {
-    if let apiError = error as? EngageKaroApiError {
+    if let apiError = error as? PayghaamApiError {
       let nsError = NSError(
-        domain: "EngageKaro",
+        domain: "Payghaam",
         code: apiError.statusCode,
         userInfo: [
           NSLocalizedDescriptionKey: apiError.errorDescription ?? "",
           "statusCode": apiError.statusCode,
         ]
       )
-      reject("engagekaro_api_error", apiError.errorDescription, nsError)
+      reject("payghaam_api_error", apiError.errorDescription, nsError)
     } else {
-      reject("engagekaro_api_error", "\(error)", error)
+      reject("payghaam_api_error", "\(error)", error)
     }
   }
 

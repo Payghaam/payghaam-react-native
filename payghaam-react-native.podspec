@@ -1,0 +1,20 @@
+require "json"
+
+package = JSON.parse(File.read(File.join(__dir__, "package.json")))
+
+Pod::Spec.new do |s|
+  s.name         = "payghaam-react-native"
+  s.version      = package["version"]
+  s.summary      = "Payghaam SDK for React Native"
+  s.homepage     = "https://github.com/msamoeed/engagekaro"
+  s.license      = "MIT"
+  s.author       = { "Payghaam" => "dev@payghaam.com" }
+  s.platforms    = { :ios => "15.0" }
+  s.source       = { :git => "https://github.com/msamoeed/engagekaro.git", :tag => "#{s.version}" }
+  s.source_files = "ios/**/*.{h,m,mm,swift}"
+  s.dependency "React-Core"
+  # Canonical native SDK (sdks/ios) — see sdk-native-wrapper-design.md. Resolved
+  # via a local `pod 'Payghaam', :path => ...` entry in the consuming app's
+  # Podfile.
+  s.dependency "Payghaam"
+end

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { OfflineQueue, QueuedOp, isRetryable } from "./offline-queue";
-import { EngageKaroApiError } from "./api-client";
+import { PayghaamApiError } from "./api-client";
 
 class MemoryStorage {
   private data = new Map<string, string>();
@@ -40,7 +40,7 @@ describe("OfflineQueue", () => {
     const sent: QueuedOp[] = [];
     const q = new OfflineQueue(async (op) => {
       if ((op.body as { name: string }).name === "bad") {
-        throw new EngageKaroApiError(400, "invalid");
+        throw new PayghaamApiError(400, "invalid");
       }
       sent.push(op);
     }, new MemoryStorage());
@@ -68,11 +68,11 @@ describe("OfflineQueue", () => {
   });
 
   it("classifies retryability by status code", () => {
-    expect(isRetryable(new EngageKaroApiError(500, ""))).toBe(true);
-    expect(isRetryable(new EngageKaroApiError(429, ""))).toBe(true);
-    expect(isRetryable(new EngageKaroApiError(408, ""))).toBe(true);
-    expect(isRetryable(new EngageKaroApiError(400, ""))).toBe(false);
-    expect(isRetryable(new EngageKaroApiError(401, ""))).toBe(false);
+    expect(isRetryable(new PayghaamApiError(500, ""))).toBe(true);
+    expect(isRetryable(new PayghaamApiError(429, ""))).toBe(true);
+    expect(isRetryable(new PayghaamApiError(408, ""))).toBe(true);
+    expect(isRetryable(new PayghaamApiError(400, ""))).toBe(false);
+    expect(isRetryable(new PayghaamApiError(401, ""))).toBe(false);
     expect(isRetryable(new TypeError("network request failed"))).toBe(true);
   });
 

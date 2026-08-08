@@ -24,7 +24,7 @@ interface DeviceContextNative {
 }
 
 const NativeDevice: DeviceContextNative | undefined =
-  NativeModules.EngagekaroReactNative as DeviceContextNative | undefined;
+  NativeModules.PayghaamReactNative as DeviceContextNative | undefined;
 
 export function noteForegroundResume(): boolean {
   const now = Date.now();

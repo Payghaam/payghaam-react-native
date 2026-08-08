@@ -4,7 +4,7 @@
 // behavioral data.
 //
 // Storage is pluggable: pass an AsyncStorage-compatible adapter via
-// `EngageKaroConfig.storage` to persist the queue across app launches. Without
+// `PayghaamConfig.storage` to persist the queue across app launches. Without
 // one, the queue still buffers in memory for the lifetime of the process
 // (covers tunnels/airplane-mode within a session).
 
@@ -21,7 +21,7 @@ export interface QueuedOp {
   queuedAt: number;
 }
 
-const STORAGE_KEY = "engagekaro.queue.v1";
+const STORAGE_KEY = "payghaam.queue.v1";
 const MAX_QUEUE = 200; // oldest dropped beyond this — bound memory/storage
 const MAX_AGE_MS = 7 * 24 * 3600_000;
 

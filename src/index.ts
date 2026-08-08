@@ -1,12 +1,12 @@
 import { Linking, NativeEventEmitter, NativeModules, Platform } from "react-native";
-import { ApiClient, EngageKaroApiError, EngageKaroConfig, SubscriptionType } from "./api-client";
+import { ApiClient, PayghaamApiError, PayghaamConfig, SubscriptionType } from "./api-client";
 import {
   collectDeviceContext,
   noteForegroundResume,
   wireAppStateSession,
 } from "./device-context";
 
-interface EngageKaroNativePush {
+interface PayghaamNativePush {
   requestPermission(): Promise<boolean>;
   getToken(): Promise<string | null>;
   getInitialNotification(): Promise<Record<string, unknown> | null>;
@@ -41,14 +41,14 @@ interface EngageKaroNativePush {
   apiFlushQueue(): Promise<void>;
 }
 
-const NativePush: EngageKaroNativePush | undefined =
-  NativeModules.EngagekaroReactNative as EngageKaroNativePush | undefined;
+const NativePush: PayghaamNativePush | undefined =
+  NativeModules.PayghaamReactNative as PayghaamNativePush | undefined;
 
-const emitter = NativePush ? new NativeEventEmitter(NativeModules.EngagekaroReactNative) : null;
+const emitter = NativePush ? new NativeEventEmitter(NativeModules.PayghaamReactNative) : null;
 
-let config: EngageKaroConfig | null = null;
+let config: PayghaamConfig | null = null;
 // HTTP fallback, used only where there's no native SDK to delegate to (see
-// EngageKaroNativePush above).
+// PayghaamNativePush above).
 let api: ApiClient | null = null;
 let externalId: string | null = null;
 let consentGiven = true;
@@ -56,7 +56,7 @@ let pendingToken: string | null = null;
 let pushPermission: string | undefined;
 const subs: (() => void)[] = [];
 
-/** Payload of a tapped notification: your `data` keys plus EngageKaro's `ek_*` keys. */
+/** Payload of a tapped notification: your `data` keys plus Payghaam's `ek_*` keys. */
 export type NotificationPayload = Record<string, unknown>;
 type OpenedHandler = (payload: NotificationPayload) => void;
 
@@ -77,7 +77,7 @@ function canSend(): boolean {
 
 /**
  * Runs a native-bridge call when the native module is present, converting its
- * `engagekaro_api_error` rejection into an `EngageKaroApiError`; falls back to
+ * `payghaam_api_error` rejection into an `PayghaamApiError`; falls back to
  * the `fetch`-based `ApiClient` when there's no native module at all. Native's
  * `sendOrQueue` already swallows retryable failures (parks them in its own
  * offline queue), so a rejection here means a non-retryable one (e.g. a 4xx).
@@ -91,9 +91,9 @@ async function callApi(nativeCall: () => Promise<void>, httpFallback: () => Prom
     await nativeCall();
   } catch (err: unknown) {
     const e = err as { code?: string; message?: string; userInfo?: { statusCode?: number }; statusCode?: number };
-    if (e?.code === "engagekaro_api_error") {
+    if (e?.code === "payghaam_api_error") {
       const statusCode = e.userInfo?.statusCode ?? e.statusCode ?? 0;
-      throw new EngageKaroApiError(statusCode, e.message ?? "");
+      throw new PayghaamApiError(statusCode, e.message ?? "");
     }
     throw err;
   }
@@ -203,14 +203,14 @@ function wirePushListeners(): void {
   );
 }
 
-/** EngageKaro React Native SDK */
-export const EngageKaro = {
+/** Payghaam React Native SDK */
+export const Payghaam = {
   /** Initialize once at app start. */
-  initialize(cfg: EngageKaroConfig): void {
+  initialize(cfg: PayghaamConfig): void {
     config = cfg;
     api = new ApiClient(cfg);
     consentGiven = !cfg.requireConsent;
-    // Mirror config/identity into the native bridge (see EngageKaroNativePush
+    // Mirror config/identity into the native bridge (see PayghaamNativePush
     // above) so apiIdentify/apiTrack/etc. work without a separate "did you call
     // login() yet" state machine on the native side.
     void NativePush?.apiSync({ apiKey: cfg.apiKey, baseUrl: cfg.baseUrl, externalId: externalId ?? undefined });
@@ -233,10 +233,10 @@ export const EngageKaro = {
 
   /**
    * Subscribe to notification taps. The handler receives the full push payload —
-   * your custom `data` keys plus EngageKaro's own `ek_*` keys.
+   * your custom `data` keys plus Payghaam's own `ek_*` keys.
    *
    * ```ts
-   * EngageKaro.onNotificationOpened((payload) => {
+   * Payghaam.onNotificationOpened((payload) => {
    *   if (typeof payload.targetId === "string") navigate("Offer", { id: payload.targetId });
    * });
    * ```
@@ -285,7 +285,7 @@ export const EngageKaro = {
   },
 
   async addTag(key: string, value: unknown): Promise<void> {
-    return EngageKaro.addTags({ [key]: value });
+    return Payghaam.addTags({ [key]: value });
   },
 
   async addTags(tags: Record<string, unknown>): Promise<void> {
@@ -351,5 +351,5 @@ export const EngageKaro = {
   },
 };
 
-export type { EngageKaroConfig };
-export { EngageKaroApiError } from "./api-client";
+export type { PayghaamConfig };
+export { PayghaamApiError } from "./api-client";

@@ -1,4 +1,4 @@
-package com.engagekaro.reactnative
+package com.payghaam.reactnative
 
 import android.Manifest
 import android.app.Activity
@@ -7,9 +7,9 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.engagekaro.sdk.EngageKaro
-import com.engagekaro.sdk.EngageKaroApiException
-import com.engagekaro.sdk.SubscriptionType
+import com.payghaam.sdk.Payghaam
+import com.payghaam.sdk.PayghaamApiException
+import com.payghaam.sdk.SubscriptionType
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.modules.core.PermissionAwareActivity
@@ -22,7 +22,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /** Native push bridge for React Native — FCM on Android, mirrors Flutter plugin channels. */
-class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
+class PayghaamReactNativeModule(private val ctx: ReactApplicationContext) :
     ReactContextBaseJavaModule(ctx), PermissionListener, ActivityEventListener {
 
     private var pendingPermission: Promise? = null
@@ -33,7 +33,7 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
         ctx.addActivityEventListener(this)
     }
 
-    override fun getName() = "EngagekaroReactNative"
+    override fun getName() = "PayghaamReactNative"
 
     override fun invalidate() {
         ctx.removeActivityEventListener(this)
@@ -45,7 +45,7 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
     // A tap on an already-running app arrives here (the launcher activity is
     // singleTop/singleTask), not through the launch intent.
     override fun onNewIntent(intent: Intent?) {
-        val payload = EngagekaroNotifications.payloadFrom(intent) ?: return
+        val payload = PayghaamNotifications.payloadFrom(intent) ?: return
         emit("onOpened", payload)
     }
 
@@ -117,12 +117,12 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
     /** The tap that cold-launched the app, read once from the launcher intent. */
     @ReactMethod
     fun getInitialNotification(promise: Promise) {
-        promise.resolve(EngagekaroNotifications.payloadFrom(currentActivity?.intent))
+        promise.resolve(PayghaamNotifications.payloadFrom(currentActivity?.intent))
     }
 
     /**
      * Persists config for headless FCM handling by delegating to the canonical SDK
-     * ([EngageKaro.persistBridgeConfig]) — see sdk-native-wrapper-design.md. Was
+     * ([Payghaam.persistBridgeConfig]) — see sdk-native-wrapper-design.md. Was
      * previously a no-op; `shareConfig()` on the JS side had never actually done
      * anything on Android.
      */
@@ -131,7 +131,7 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
         val apiBase = if (config.hasKey("apiBase")) config.getString("apiBase") else null
         val apiKey = if (config.hasKey("apiKey")) config.getString("apiKey") else null
         if (apiBase != null && apiKey != null) {
-            EngageKaro.persistBridgeConfig(
+            Payghaam.persistBridgeConfig(
                 context = ctx,
                 apiKey = apiKey,
                 baseUrl = apiBase,
@@ -151,7 +151,7 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
         val apiKey = if (config.hasKey("apiKey")) config.getString("apiKey") else null
         val baseUrl = if (config.hasKey("baseUrl")) config.getString("baseUrl") else null
         if (apiKey != null && baseUrl != null) {
-            EngageKaro.persistBridgeConfig(
+            Payghaam.persistBridgeConfig(
                 context = ctx,
                 apiKey = apiKey,
                 baseUrl = baseUrl,
@@ -164,14 +164,14 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
 
     @ReactMethod
     fun apiClearIdentity(promise: Promise) {
-        EngageKaro.clearBridgeIdentity(ctx)
+        Payghaam.clearBridgeIdentity(ctx)
         promise.resolve(null)
     }
 
     @ReactMethod
     fun apiIdentify(args: ReadableMap?, promise: Promise) {
         val deviceContext = args?.getMap("deviceContext")?.toHashMap()
-        bridgeCall(promise) { EngageKaro.bridgeIdentify(deviceContext) }
+        bridgeCall(promise) { Payghaam.bridgeIdentify(deviceContext) }
     }
 
     @ReactMethod
@@ -183,7 +183,7 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
             return
         }
         bridgeCall(promise) {
-            EngageKaro.bridgeAddSubscription(
+            Payghaam.bridgeAddSubscription(
                 SubscriptionType.valueOf(type),
                 token,
                 if (args.hasKey("deviceModel")) args.getString("deviceModel") else null,
@@ -196,7 +196,7 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
     @ReactMethod
     fun apiUpdateTags(args: ReadableMap, promise: Promise) {
         val tags = args.getMap("tags")?.toHashMap() ?: emptyMap<String, Any?>()
-        bridgeCall(promise) { EngageKaro.addTags(tags) }
+        bridgeCall(promise) { Payghaam.addTags(tags) }
     }
 
     @ReactMethod
@@ -207,7 +207,7 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
             return
         }
         val properties = args.getMap("properties")?.toHashMap()
-        bridgeCall(promise) { EngageKaro.trackEvent(name, properties) }
+        bridgeCall(promise) { Payghaam.trackEvent(name, properties) }
     }
 
     @ReactMethod
@@ -219,12 +219,12 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
             return
         }
         val properties = args.getMap("properties")?.toHashMap()
-        bridgeCall(promise) { EngageKaro.reportPushReceipt(messageId, event, properties) }
+        bridgeCall(promise) { Payghaam.reportPushReceipt(messageId, event, properties) }
     }
 
     @ReactMethod
     fun apiFlushQueue(promise: Promise) {
-        bridgeCall(promise) { EngageKaro.bridgeFlushQueue() }
+        bridgeCall(promise) { Payghaam.bridgeFlushQueue() }
     }
 
     /**
@@ -232,7 +232,7 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
      * `sendOrQueue` inside the canonical SDK already swallows retryable failures
      * (parks them in the offline queue), so this only ever rejects for a
      * non-retryable one (e.g. a 4xx) — JS wraps that back into
-     * `EngageKaroApiError`. `Promise` is safe to resolve/reject from any thread.
+     * `PayghaamApiError`. `Promise` is safe to resolve/reject from any thread.
      */
     private fun bridgeCall(promise: Promise, block: suspend () -> Unit) {
         scope.launch {
@@ -241,9 +241,9 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
                 promise.resolve(null)
             } catch (t: Throwable) {
                 val info = Arguments.createMap().apply {
-                    (t as? EngageKaroApiException)?.let { putInt("statusCode", it.statusCode) }
+                    (t as? PayghaamApiException)?.let { putInt("statusCode", it.statusCode) }
                 }
-                promise.reject("engagekaro_api_error", t.message ?: t.toString(), info)
+                promise.reject("payghaam_api_error", t.message ?: t.toString(), info)
             }
         }
     }
@@ -272,14 +272,14 @@ class EngagekaroReactNativeModule(private val ctx: ReactApplicationContext) :
          * picks the tap up later via getInitialNotification().
          */
         @Volatile
-        private var instance: EngagekaroReactNativeModule? = null
+        private var instance: PayghaamReactNativeModule? = null
 
         fun emitToken(token: String) {
             instance?.emit("onToken", token)
         }
 
         fun emitForeground(data: Map<String, String>) {
-            instance?.emit("onForeground", EngagekaroNotifications.asWritableMap(data))
+            instance?.emit("onForeground", PayghaamNotifications.asWritableMap(data))
         }
     }
 }

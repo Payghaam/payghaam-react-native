@@ -2,7 +2,7 @@ apply plugin: "com.android.library"
 apply plugin: "org.jetbrains.kotlin.android"
 
 android {
-    namespace "com.engagekaro.reactnative"
+    namespace "com.payghaam.reactnative"
     compileSdk 34
     defaultConfig { minSdk 21 }
     compileOptions {
@@ -15,8 +15,8 @@ android {
 dependencies {
     implementation "com.facebook.react:react-native:+"
     // Canonical native SDK (sdks/android). Consuming apps must add a composite
-    // build + dependency substitution for "com.engagekaro:engagekaro" to their own
+    // build + dependency substitution for "com.payghaam:payghaam" to their own
     // android/settings.gradle — see sdks/react-native/README.md and
     // sdk-native-wrapper-design.md. Brings in firebase-messaging transitively.
-    implementation "com.engagekaro:engagekaro"
+    implementation "com.payghaam:payghaam"
 }
