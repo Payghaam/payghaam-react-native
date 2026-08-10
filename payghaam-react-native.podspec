@@ -13,8 +13,8 @@ Pod::Spec.new do |s|
   s.source       = { :git => "https://github.com/payghaam/payghaam-react-native.git", :tag => "#{s.version}" }
   s.source_files = "ios/**/*.{h,m,mm,swift}"
   s.dependency "React-Core"
-  # Canonical native SDK (sdks/ios) — see sdk-native-wrapper-design.md. Resolved
-  # via a local `pod 'Payghaam', :path => ...` entry in the consuming app's
-  # Podfile.
+  # Canonical native SDK, published to the CocoaPods trunk as the `Payghaam`
+  # pod. Resolved from the public CocoaPods spec repo, same as any other
+  # third-party pod.
   s.dependency "Payghaam"
 end

@@ -14,9 +14,9 @@ android {
 
 dependencies {
     implementation "com.facebook.react:react-native:+"
-    // Canonical native SDK (sdks/android). Consuming apps must add a composite
-    // build + dependency substitution for "com.payghaam:payghaam" to their own
-    // android/settings.gradle — see sdks/react-native/README.md and
-    // sdk-native-wrapper-design.md. Brings in firebase-messaging transitively.
+    // Canonical native SDK, published to Maven Central as com.payghaam:payghaam.
+    // Resolved directly from Maven Central like any other dependency — no
+    // consuming-app settings.gradle changes needed. Brings in firebase-messaging
+    // transitively.
     implementation "com.payghaam:payghaam"
 }

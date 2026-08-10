@@ -1,0 +1,32 @@
+name: Publish
+on:
+  push:
+    tags:
+      - "v*"
+
+# Required for npm's OIDC-based Trusted Publishing (GA July 2025) — no
+# NPM_TOKEN secret needed. npm CLI auto-detects the GitHub Actions OIDC
+# token and exchanges it for a short-lived publish credential. See
+# RELEASING.md for the one-time npmjs.com-side trusted-publisher setup this
+# depends on.
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Trusted Publishing requires npm CLI >=11.5.1 and Node >=22.14.0
+          # (older Node's bundled npm can't do the OIDC exchange).
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+      - run: npm install
+      # prepublishOnly (typecheck + test + tsc build) runs automatically as
+      # part of `npm publish` — see package.json. No NODE_AUTH_TOKEN env var
+      # here on purpose — OIDC handles auth, and provenance attestations are
+      # generated automatically as part of trusted publishing.
+      - run: npm publish
