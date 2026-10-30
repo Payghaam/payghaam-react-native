@@ -18,5 +18,5 @@ dependencies {
     // Resolved directly from Maven Central like any other dependency — no
     // consuming-app settings.gradle changes needed. Brings in firebase-messaging
     // transitively.
-    implementation "com.payghaam:payghaam"
+    implementation "com.payghaam:payghaam:0.1.8"
 }

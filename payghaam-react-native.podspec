@@ -16,5 +16,5 @@ Pod::Spec.new do |s|
   # Canonical native SDK, published to the CocoaPods trunk as the `Payghaam`
   # pod. Resolved from the public CocoaPods spec repo, same as any other
   # third-party pod.
-  s.dependency "Payghaam"
+  s.dependency "Payghaam", ">= 0.1.5"
 end
