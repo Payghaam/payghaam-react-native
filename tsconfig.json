@@ -8,7 +8,22 @@
     "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    // Without this, tsc implicitly scans and tries to load EVERY package
+    // under node_modules/@types as a global — including transitive
+    // stragglers like prop-types/yargs pulled in via react-native's own
+    // dependency tree, which this SDK never actually imports. Restricting
+    // to [] forces every type to come from an explicit import instead,
+    // which is also the right posture for a library (no leaking ambient
+    // globals into consumers) and avoids "Cannot find type definition
+    // file" errors caused by npm's hoisting of nested @types packages.
+    "types": []
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Test files were otherwise compiled into lib/ too — which both shipped
+  // unnecessary .test.js/.test.d.ts in the published npm tarball, AND broke
+  // `npm test`, since vitest picked up the compiled CommonJS copy in lib/
+  // alongside the real source test and that copy can't be require()'d
+  // (vitest is ESM-only).
+  "exclude": ["src/**/*.test.ts"]
 }

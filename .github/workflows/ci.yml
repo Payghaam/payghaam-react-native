@@ -12,7 +12,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: npm install
+          cache: "npm"
+      # `npm ci` not `npm install` — CI should test the dependency tree the
+      # lockfile pins, not whatever happens to resolve today. With `npm install`
+      # a transitive release can turn CI red (or, worse, green) on a commit that
+      # did not change.
+      - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
