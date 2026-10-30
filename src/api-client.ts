@@ -93,11 +93,11 @@ export class ApiClient {
     type: SubscriptionType,
     token: string,
   ): Promise<void> {
-    return this.sendOrQueue("POST", `/users/${externalId}/subscriptions`, { type, token });
+    return this.sendOrQueue("POST", "/subscriptions", { externalId, type, token });
   }
 
   updateTags(externalId: string, tags: Record<string, unknown>): Promise<void> {
-    return this.sendOrQueue("PUT", `/users/${externalId}/tags`, { tags });
+    return this.sendOrQueue("PUT", "/tags", { externalId, tags });
   }
 
   track(name: string, externalId?: string, properties?: Record<string, unknown>): Promise<void> {
