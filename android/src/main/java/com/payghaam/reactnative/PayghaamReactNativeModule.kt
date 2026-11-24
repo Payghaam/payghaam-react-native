@@ -209,6 +209,22 @@ class PayghaamReactNativeModule(private val ctx: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun apiRemoveSubscription(args: ReadableMap, promise: Promise) {
+        val type = if (args.hasKey("type")) args.getString("type") else null
+        val token = if (args.hasKey("token")) args.getString("token") else null
+        if (type == null || token == null) {
+            promise.resolve(null)
+            return
+        }
+        bridgeCall(promise) {
+            Payghaam.bridgeRemoveSubscription(
+                SubscriptionType.valueOf(type),
+                token,
+            )
+        }
+    }
+
+    @ReactMethod
     fun apiUpdateTags(args: ReadableMap, promise: Promise) {
         val tags = args.getMap("tags")?.toHashMap() ?: emptyMap<String, Any?>()
         bridgeCall(promise) { Payghaam.addTags(tags) }

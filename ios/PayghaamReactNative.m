@@ -34,6 +34,10 @@ RCT_EXTERN_METHOD(apiAddSubscription:(NSDictionary *)args
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(apiRemoveSubscription:(NSDictionary *)args
+                  resolve:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
+
 RCT_EXTERN_METHOD(apiUpdateTags:(NSDictionary *)args
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)

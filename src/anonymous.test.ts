@@ -11,6 +11,7 @@ vi.mock("react-native", () => ({
       apiClearIdentity: vi.fn().mockResolvedValue(null),
       apiIdentify: vi.fn().mockResolvedValue(null),
       apiAddSubscription: vi.fn().mockResolvedValue(null),
+      apiRemoveSubscription: vi.fn().mockResolvedValue(null),
       apiUpdateTags: vi.fn().mockResolvedValue(null),
       apiSetLanguage: vi.fn().mockResolvedValue(null),
       apiAddAliases: vi.fn().mockResolvedValue(null),
@@ -57,6 +58,10 @@ describe("Payghaam Anonymous Tracking & Profile Attributes", () => {
     await Payghaam.setLanguage("ar");
     await Payghaam.addTag("tier", "silver");
     await Payghaam.addAlias("loyalty_id", "loyalty_123");
+    await Payghaam.addEmail("user@example.com");
+    await Payghaam.removeEmail("user@example.com");
+    await Payghaam.addSms("+1234567890");
+    await Payghaam.removeSms("+1234567890");
     await Payghaam.trackEvent("browse_product", { sku: "abc" });
   });
 });

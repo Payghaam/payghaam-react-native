@@ -132,6 +132,29 @@ export class ApiClient {
     });
   }
 
+  removeSubscription(
+    target:
+      | string
+      | {
+          externalId?: string;
+          anonymousId?: string;
+          type: SubscriptionType;
+          token: string;
+        },
+    type?: SubscriptionType,
+    token?: string,
+  ): Promise<void> {
+    if (typeof target === "string") {
+      return this.sendOrQueue("POST", "/subscriptions/remove", { externalId: target, type, token });
+    }
+    return this.sendOrQueue("POST", "/subscriptions/remove", {
+      ...(target.externalId ? { externalId: target.externalId } : {}),
+      ...(target.anonymousId ? { anonymousId: target.anonymousId } : {}),
+      type: target.type,
+      token: target.token,
+    });
+  }
+
   updateTags(
     target:
       | string

@@ -172,6 +172,25 @@ class PayghaamReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
     }
   }
 
+  @objc func apiRemoveSubscription(_ args: NSDictionary,
+                                    resolve: @escaping RCTPromiseResolveBlock,
+                                    reject: @escaping RCTPromiseRejectBlock) {
+    guard let typeStr = args["type"] as? String,
+          let type = SubscriptionType(rawValue: typeStr),
+          let token = args["token"] as? String else {
+      resolve(nil)
+      return
+    }
+    Task {
+      do {
+        try await Payghaam.shared.bridgeRemoveSubscription(type: type, token: token)
+        resolve(nil)
+      } catch {
+        Self.reject(reject, error)
+      }
+    }
+  }
+
   @objc func apiUpdateTags(_ args: NSDictionary,
                            resolve: @escaping RCTPromiseResolveBlock,
                            reject: @escaping RCTPromiseRejectBlock) {

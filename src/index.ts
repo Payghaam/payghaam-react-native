@@ -35,6 +35,10 @@ interface PayghaamNativePush {
     deviceOs?: string;
     appVersion?: string;
   }): Promise<void>;
+  apiRemoveSubscription(args: {
+    type: SubscriptionType;
+    token: string;
+  }): Promise<void>;
   apiUpdateTags(args: { tags: Record<string, unknown> }): Promise<void>;
   apiTrack(args: { name: string; properties?: Record<string, unknown> }): Promise<void>;
   apiReportReceipt(args: {
@@ -338,12 +342,40 @@ export const Payghaam = {
     );
   },
 
+  async removeEmail(email: string): Promise<void> {
+    if (!canSend()) return;
+    await callApi(
+      () => NativePush!.apiRemoveSubscription({ type: "EMAIL", token: email }),
+      () =>
+        api!.removeSubscription({
+          externalId: externalId ?? undefined,
+          anonymousId,
+          type: "EMAIL",
+          token: email,
+        }),
+    );
+  },
+
   async addSms(phone: string): Promise<void> {
     if (!canSend()) return;
     await callApi(
       () => NativePush!.apiAddSubscription({ type: "SMS", token: phone }),
       () =>
         api!.addSubscription({
+          externalId: externalId ?? undefined,
+          anonymousId,
+          type: "SMS",
+          token: phone,
+        }),
+    );
+  },
+
+  async removeSms(phone: string): Promise<void> {
+    if (!canSend()) return;
+    await callApi(
+      () => NativePush!.apiRemoveSubscription({ type: "SMS", token: phone }),
+      () =>
+        api!.removeSubscription({
           externalId: externalId ?? undefined,
           anonymousId,
           type: "SMS",
