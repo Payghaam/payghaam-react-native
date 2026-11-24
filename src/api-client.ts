@@ -187,6 +187,25 @@ export class ApiClient {
     });
   }
 
+  removeAlias(
+    label: string,
+    target?: { externalId?: string; anonymousId?: string },
+  ): Promise<void> {
+    return this.sendOrQueue("POST", "/aliases/remove", {
+      ...(target?.externalId ? { externalId: target.externalId } : {}),
+      ...(target?.anonymousId ? { anonymousId: target.anonymousId } : {}),
+      label,
+    });
+  }
+
+  optOut(type: SubscriptionType, token: string): Promise<void> {
+    return this.sendOrQueue("POST", "/opt-out", { type, token });
+  }
+
+  optIn(type: SubscriptionType, token: string): Promise<void> {
+    return this.sendOrQueue("POST", "/opt-in", { type, token });
+  }
+
   track(
     name: string,
     target?: { externalId?: string; anonymousId?: string } | string,

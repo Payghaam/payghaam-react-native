@@ -139,6 +139,47 @@ class PayghaamReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
     }
   }
 
+  @objc func apiRemoveAlias(_ args: NSDictionary,
+                            resolve: @escaping RCTPromiseResolveBlock,
+                            reject: @escaping RCTPromiseRejectBlock) {
+    guard let label = args["label"] as? String else {
+      resolve(nil)
+      return
+    }
+    Task {
+      do {
+        try await Payghaam.shared.bridgeRemoveAlias(label)
+        resolve(nil)
+      } catch {
+        Self.reject(reject, error)
+      }
+    }
+  }
+
+  @objc func apiOptOut(_ resolve: @escaping RCTPromiseResolveBlock,
+                       reject: @escaping RCTPromiseRejectBlock) {
+    Task {
+      do {
+        try await Payghaam.shared.bridgeOptOut()
+        resolve(nil)
+      } catch {
+        Self.reject(reject, error)
+      }
+    }
+  }
+
+  @objc func apiOptIn(_ resolve: @escaping RCTPromiseResolveBlock,
+                      reject: @escaping RCTPromiseRejectBlock) {
+    Task {
+      do {
+        try await Payghaam.shared.bridgeOptIn()
+        resolve(nil)
+      } catch {
+        Self.reject(reject, error)
+      }
+    }
+  }
+
   @objc func apiIdentify(_ args: NSDictionary?,
                          resolve: @escaping RCTPromiseResolveBlock,
                          reject: @escaping RCTPromiseRejectBlock) {

@@ -27,6 +27,9 @@ interface PayghaamNativePush {
   apiClearIdentity(): Promise<void>;
   apiSetLanguage(args: { language?: string }): Promise<void>;
   apiAddAliases(args: { aliases: Record<string, string> }): Promise<void>;
+  apiRemoveAlias(args: { label: string }): Promise<void>;
+  apiOptOut(): Promise<void>;
+  apiOptIn(): Promise<void>;
   apiIdentify(args: { deviceContext?: Record<string, unknown> }): Promise<void>;
   apiAddSubscription(args: {
     type: SubscriptionType;
@@ -71,6 +74,7 @@ let anonymousId: string = generateUUID();
 let languageOverride: string | undefined;
 let consentGiven = true;
 let pendingToken: string | null = null;
+let currentPushToken: string | null = null;
 let pushPermission: string | undefined;
 const subs: (() => void)[] = [];
 
@@ -148,6 +152,7 @@ async function runPostLoginTasks(): Promise<void> {
 }
 
 async function registerToken(token: string): Promise<void> {
+  currentPushToken = token;
   if (!canSend()) return;
   const type: SubscriptionType = Platform.OS === "ios" ? "IOS_PUSH" : "ANDROID_PUSH";
   await callApi(
@@ -302,6 +307,14 @@ export const Payghaam = {
     return anonymousId;
   },
 
+  getExternalId(): string | null {
+    return externalId;
+  },
+
+  getPushToken(): string | null {
+    return currentPushToken;
+  },
+
   async setLanguage(lang?: string): Promise<void> {
     languageOverride = lang;
     if (!canSend()) return;
@@ -326,6 +339,20 @@ export const Payghaam = {
       () => NativePush!.apiAddAliases({ aliases }),
       () => api!.addAliases(aliases, { externalId: externalId ?? undefined, anonymousId }),
     );
+  },
+
+  async removeAlias(label: string): Promise<void> {
+    return Payghaam.removeAliases([label]);
+  },
+
+  async removeAliases(labels: string[]): Promise<void> {
+    if (!canSend()) return;
+    for (const label of labels) {
+      await callApi(
+        () => NativePush!.apiRemoveAlias({ label }),
+        () => api!.removeAlias(label, { externalId: externalId ?? undefined, anonymousId }),
+      );
+    }
   },
 
   async addEmail(email: string): Promise<void> {
@@ -406,6 +433,44 @@ export const Payghaam = {
     await callApi(
       () => NativePush!.apiUpdateTags({ tags }),
       () => api!.updateTags({ externalId: externalId ?? undefined, anonymousId, tags }),
+    );
+  },
+
+  async removeTag(key: string): Promise<void> {
+    return Payghaam.removeTags([key]);
+  },
+
+  async removeTags(keys: string[]): Promise<void> {
+    const tags: Record<string, unknown> = {};
+    for (const key of keys) {
+      tags[key] = null;
+    }
+    return Payghaam.addTags(tags);
+  },
+
+  async optOut(): Promise<void> {
+    if (!canSend()) return;
+    await callApi(
+      () => NativePush!.apiOptOut(),
+      async () => {
+        if (currentPushToken) {
+          const type: SubscriptionType = Platform.OS === "ios" ? "IOS_PUSH" : "ANDROID_PUSH";
+          await api!.optOut(type, currentPushToken);
+        }
+      },
+    );
+  },
+
+  async optIn(): Promise<void> {
+    if (!canSend()) return;
+    await callApi(
+      () => NativePush!.apiOptIn(),
+      async () => {
+        if (currentPushToken) {
+          const type: SubscriptionType = Platform.OS === "ios" ? "IOS_PUSH" : "ANDROID_PUSH";
+          await api!.optIn(type, currentPushToken);
+        }
+      },
     );
   },
 

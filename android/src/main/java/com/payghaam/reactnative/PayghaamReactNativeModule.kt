@@ -184,6 +184,26 @@ class PayghaamReactNativeModule(private val ctx: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun apiRemoveAlias(args: ReadableMap, promise: Promise) {
+        val label = if (args.hasKey("label")) args.getString("label") else null
+        if (label == null) {
+            promise.resolve(null)
+            return
+        }
+        bridgeCall(promise) { Payghaam.bridgeRemoveAlias(label) }
+    }
+
+    @ReactMethod
+    fun apiOptOut(promise: Promise) {
+        bridgeCall(promise) { Payghaam.bridgeOptOut() }
+    }
+
+    @ReactMethod
+    fun apiOptIn(promise: Promise) {
+        bridgeCall(promise) { Payghaam.bridgeOptIn() }
+    }
+
+    @ReactMethod
     fun apiIdentify(args: ReadableMap?, promise: Promise) {
         val deviceContext = args?.getMap("deviceContext")?.toHashMap()
         bridgeCall(promise) { Payghaam.bridgeIdentify(deviceContext) }
