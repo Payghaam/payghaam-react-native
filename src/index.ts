@@ -21,8 +21,12 @@ interface PayghaamNativePush {
     baseUrl: string;
     externalId?: string;
     identityHash?: string;
+    anonymousId?: string;
+    language?: string;
   }): Promise<void>;
   apiClearIdentity(): Promise<void>;
+  apiSetLanguage(args: { language?: string }): Promise<void>;
+  apiAddAliases(args: { aliases: Record<string, string> }): Promise<void>;
   apiIdentify(args: { deviceContext?: Record<string, unknown> }): Promise<void>;
   apiAddSubscription(args: {
     type: SubscriptionType;
@@ -46,11 +50,21 @@ const NativePush: PayghaamNativePush | undefined =
 
 const emitter = NativePush ? new NativeEventEmitter(NativeModules.PayghaamReactNative) : null;
 
+function generateUUID(): string {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 let config: PayghaamConfig | null = null;
 // HTTP fallback, used only where there's no native SDK to delegate to (see
 // PayghaamNativePush above).
 let api: ApiClient | null = null;
 let externalId: string | null = null;
+let anonymousId: string = generateUUID();
+let languageOverride: string | undefined;
 let consentGiven = true;
 let pendingToken: string | null = null;
 let pushPermission: string | undefined;
@@ -100,7 +114,7 @@ async function callApi(nativeCall: () => Promise<void>, httpFallback: () => Prom
 }
 
 async function pingDeviceContext(sessionStart = false): Promise<void> {
-  if (!canSend() || !externalId) return;
+  if (!canSend()) return;
   try {
     const countSession = sessionStart && noteForegroundResume();
     const ctx = await collectDeviceContext({
@@ -109,7 +123,13 @@ async function pingDeviceContext(sessionStart = false): Promise<void> {
     });
     await callApi(
       () => NativePush!.apiIdentify({ deviceContext: ctx as Record<string, unknown> }),
-      () => api!.identify(externalId!, ctx as Record<string, unknown>),
+      () =>
+        api!.identify({
+          externalId: externalId ?? undefined,
+          anonymousId,
+          language: languageOverride,
+          deviceContext: ctx as Record<string, unknown>,
+        }),
     );
   } catch {
     // Best-effort device profile sync.
@@ -117,7 +137,7 @@ async function pingDeviceContext(sessionStart = false): Promise<void> {
 }
 
 async function runPostLoginTasks(): Promise<void> {
-  if (!canSend() || !externalId) return;
+  if (!canSend()) return;
   const token = pendingToken ?? (await NativePush?.getToken()) ?? null;
   if (token) await registerToken(token);
   await pingDeviceContext(true);
@@ -125,14 +145,10 @@ async function runPostLoginTasks(): Promise<void> {
 
 async function registerToken(token: string): Promise<void> {
   if (!canSend()) return;
-  if (!externalId) {
-    pendingToken = token;
-    return;
-  }
   const type: SubscriptionType = Platform.OS === "ios" ? "IOS_PUSH" : "ANDROID_PUSH";
   await callApi(
     () => NativePush!.apiAddSubscription({ type, token }),
-    () => api!.addSubscription(externalId!, type, token),
+    () => api!.addSubscription({ externalId: externalId ?? undefined, anonymousId, type, token }),
   );
   pendingToken = null;
 }
@@ -213,7 +229,13 @@ export const Payghaam = {
     // Mirror config/identity into the native bridge (see PayghaamNativePush
     // above) so apiIdentify/apiTrack/etc. work without a separate "did you call
     // login() yet" state machine on the native side.
-    void NativePush?.apiSync({ apiKey: cfg.apiKey, baseUrl: cfg.baseUrl, externalId: externalId ?? undefined });
+    void NativePush?.apiSync({
+      apiKey: cfg.apiKey,
+      baseUrl: cfg.baseUrl,
+      externalId: externalId ?? undefined,
+      anonymousId,
+      language: languageOverride,
+    });
     wirePushListeners();
     // On foreground: session ping + drain anything queued while offline.
     subs.push(
@@ -234,18 +256,6 @@ export const Payghaam = {
   /**
    * Subscribe to notification taps. The handler receives the full push payload —
    * your custom `data` keys plus Payghaam's own `ek_*` keys.
-   *
-   * ```ts
-   * Payghaam.onNotificationOpened((payload) => {
-   *   if (typeof payload.targetId === "string") navigate("Offer", { id: payload.targetId });
-   * });
-   * ```
-   * With no handler registered, the SDK opens `ek_url` (the campaign's deep link)
-   * itself. Registering one suppresses that — routing becomes yours, including the
-   * deep link, available as `payload.ek_url`.
-   *
-   * A tap that cold-launched the app is replayed to a handler registered shortly
-   * after, so it is never dropped. Returns an unsubscribe function.
    */
   onNotificationOpened(handler: (payload: NotificationPayload) => void): () => void {
     openedHandlers.add(handler);
@@ -264,7 +274,14 @@ export const Payghaam = {
     externalId = id;
     if (api) api.identityHash = identityHash;
     if (config) {
-      void NativePush?.apiSync({ apiKey: config.apiKey, baseUrl: config.baseUrl, externalId: id, identityHash });
+      void NativePush?.apiSync({
+        apiKey: config.apiKey,
+        baseUrl: config.baseUrl,
+        externalId: id,
+        identityHash,
+        anonymousId,
+        language: languageOverride,
+      });
     }
     if (!canSend()) return;
     void runPostLoginTasks();
@@ -273,14 +290,78 @@ export const Payghaam = {
   async logout(): Promise<void> {
     externalId = null;
     if (api) api.identityHash = undefined;
+    anonymousId = generateUUID();
     await NativePush?.apiClearIdentity();
+  },
+
+  getAnonymousId(): string {
+    return anonymousId;
+  },
+
+  async setLanguage(lang?: string): Promise<void> {
+    languageOverride = lang;
+    if (!canSend()) return;
+    await callApi(
+      () => NativePush!.apiSetLanguage({ language: lang }),
+      () =>
+        api!.identify({
+          externalId: externalId ?? undefined,
+          anonymousId,
+          language: lang,
+        }),
+    );
+  },
+
+  async addAlias(label: string, value: string): Promise<void> {
+    return Payghaam.addAliases({ [label]: value });
+  },
+
+  async addAliases(aliases: Record<string, string>): Promise<void> {
+    if (!canSend()) return;
+    await callApi(
+      () => NativePush!.apiAddAliases({ aliases }),
+      () => api!.addAliases(aliases, { externalId: externalId ?? undefined, anonymousId }),
+    );
+  },
+
+  async addEmail(email: string): Promise<void> {
+    if (!canSend()) return;
+    await callApi(
+      () => NativePush!.apiAddSubscription({ type: "EMAIL", token: email }),
+      () =>
+        api!.addSubscription({
+          externalId: externalId ?? undefined,
+          anonymousId,
+          type: "EMAIL",
+          token: email,
+        }),
+    );
+  },
+
+  async addSms(phone: string): Promise<void> {
+    if (!canSend()) return;
+    await callApi(
+      () => NativePush!.apiAddSubscription({ type: "SMS", token: phone }),
+      () =>
+        api!.addSubscription({
+          externalId: externalId ?? undefined,
+          anonymousId,
+          type: "SMS",
+          token: phone,
+        }),
+    );
   },
 
   async trackEvent(name: string, properties?: Record<string, unknown>): Promise<void> {
     if (!canSend()) return;
     await callApi(
       () => NativePush!.apiTrack({ name, properties }),
-      () => api!.track(name, externalId ?? undefined, properties),
+      () =>
+        api!.track(
+          name,
+          { externalId: externalId ?? undefined, anonymousId },
+          properties,
+        ),
     );
   },
 
@@ -289,10 +370,10 @@ export const Payghaam = {
   },
 
   async addTags(tags: Record<string, unknown>): Promise<void> {
-    if (!canSend() || !externalId) throw new Error("Call login() first");
+    if (!canSend()) return;
     await callApi(
       () => NativePush!.apiUpdateTags({ tags }),
-      () => api!.updateTags(externalId!, tags),
+      () => api!.updateTags({ externalId: externalId ?? undefined, anonymousId, tags }),
     );
   },
 
@@ -306,7 +387,7 @@ export const Payghaam = {
         if (token) await registerToken(token);
         await pingDeviceContext();
       })();
-    } else if (externalId) {
+    } else {
       void pingDeviceContext();
     }
     return granted;

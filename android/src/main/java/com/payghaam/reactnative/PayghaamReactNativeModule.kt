@@ -157,6 +157,8 @@ class PayghaamReactNativeModule(private val ctx: ReactApplicationContext) :
                 baseUrl = baseUrl,
                 externalId = if (config.hasKey("externalId")) config.getString("externalId") else null,
                 identityHash = if (config.hasKey("identityHash")) config.getString("identityHash") else null,
+                anonymousId = if (config.hasKey("anonymousId")) config.getString("anonymousId") else null,
+                language = if (config.hasKey("language")) config.getString("language") else null,
             )
         }
         promise.resolve(null)
@@ -166,6 +168,19 @@ class PayghaamReactNativeModule(private val ctx: ReactApplicationContext) :
     fun apiClearIdentity(promise: Promise) {
         Payghaam.clearBridgeIdentity(ctx)
         promise.resolve(null)
+    }
+
+    @ReactMethod
+    fun apiSetLanguage(args: ReadableMap?, promise: Promise) {
+        val lang = if (args?.hasKey("language") == true) args.getString("language") else null
+        bridgeCall(promise) { Payghaam.bridgeSetLanguage(lang) }
+    }
+
+    @ReactMethod
+    fun apiAddAliases(args: ReadableMap, promise: Promise) {
+        val raw = args.getMap("aliases")?.toHashMap() ?: emptyMap<String, Any?>()
+        val aliases = raw.mapNotNull { (k, v) -> (v as? String)?.let { k to it } }.toMap()
+        bridgeCall(promise) { Payghaam.bridgeAddAliases(aliases) }
     }
 
     @ReactMethod

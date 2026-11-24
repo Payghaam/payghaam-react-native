@@ -97,7 +97,9 @@ class PayghaamReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
           apiKey: apiKey,
           baseUrl: baseUrl,
           externalId: config["externalId"] as? String,
-          identityHash: config["identityHash"] as? String
+          identityHash: config["identityHash"] as? String,
+          anonymousId: config["anonymousId"] as? String,
+          language: config["language"] as? String
         )
       }
     }
@@ -107,6 +109,34 @@ class PayghaamReactNative: RCTEventEmitter, UNUserNotificationCenterDelegate {
   @objc func apiClearIdentity(_ resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
     MainActor.assumeIsolated { Payghaam.shared.clearBridgeIdentity() }
     resolve(nil)
+  }
+
+  @objc func apiSetLanguage(_ args: NSDictionary?,
+                            resolve: @escaping RCTPromiseResolveBlock,
+                            reject: @escaping RCTPromiseRejectBlock) {
+    let lang = args?["language"] as? String
+    Task {
+      do {
+        try await Payghaam.shared.bridgeSetLanguage(lang)
+        resolve(nil)
+      } catch {
+        Self.reject(reject, error)
+      }
+    }
+  }
+
+  @objc func apiAddAliases(_ args: NSDictionary,
+                           resolve: @escaping RCTPromiseResolveBlock,
+                           reject: @escaping RCTPromiseRejectBlock) {
+    let raw = args["aliases"] as? [String: String] ?? [:]
+    Task {
+      do {
+        try await Payghaam.shared.bridgeAddAliases(raw)
+        resolve(nil)
+      } catch {
+        Self.reject(reject, error)
+      }
+    }
   }
 
   @objc func apiIdentify(_ args: NSDictionary?,

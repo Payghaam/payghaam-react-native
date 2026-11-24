@@ -81,29 +81,100 @@ export class ApiClient {
     return this.queue.flush();
   }
 
-  identify(externalId: string, deviceContext?: Record<string, unknown>): Promise<void> {
+  identify(
+    target:
+      | string
+      | {
+          externalId?: string;
+          anonymousId?: string;
+          language?: string;
+          aliases?: Array<{ label: string; value: string }>;
+          deviceContext?: Record<string, unknown>;
+        },
+    deviceContext?: Record<string, unknown>,
+  ): Promise<void> {
+    if (typeof target === "string") {
+      return this.sendOrQueue("POST", "/users", {
+        externalId: target,
+        ...(deviceContext ?? {}),
+      });
+    }
+    const { externalId, anonymousId, language, aliases, deviceContext: ctx } = target;
     return this.sendOrQueue("POST", "/users", {
-      externalId,
-      ...(deviceContext ?? {}),
+      ...(externalId ? { externalId } : {}),
+      ...(anonymousId ? { anonymousId } : {}),
+      ...(language ? { language } : {}),
+      ...(aliases ? { aliases } : {}),
+      ...(ctx ?? {}),
     });
   }
 
   addSubscription(
-    externalId: string,
-    type: SubscriptionType,
-    token: string,
+    target:
+      | string
+      | {
+          externalId?: string;
+          anonymousId?: string;
+          type: SubscriptionType;
+          token: string;
+        },
+    type?: SubscriptionType,
+    token?: string,
   ): Promise<void> {
-    return this.sendOrQueue("POST", "/subscriptions", { externalId, type, token });
+    if (typeof target === "string") {
+      return this.sendOrQueue("POST", "/subscriptions", { externalId: target, type, token });
+    }
+    return this.sendOrQueue("POST", "/subscriptions", {
+      ...(target.externalId ? { externalId: target.externalId } : {}),
+      ...(target.anonymousId ? { anonymousId: target.anonymousId } : {}),
+      type: target.type,
+      token: target.token,
+    });
   }
 
-  updateTags(externalId: string, tags: Record<string, unknown>): Promise<void> {
-    return this.sendOrQueue("PUT", "/tags", { externalId, tags });
+  updateTags(
+    target:
+      | string
+      | {
+          externalId?: string;
+          anonymousId?: string;
+          tags: Record<string, unknown>;
+        },
+    tags?: Record<string, unknown>,
+  ): Promise<void> {
+    if (typeof target === "string") {
+      return this.sendOrQueue("PUT", "/tags", { externalId: target, tags });
+    }
+    return this.sendOrQueue("PUT", "/tags", {
+      ...(target.externalId ? { externalId: target.externalId } : {}),
+      ...(target.anonymousId ? { anonymousId: target.anonymousId } : {}),
+      tags: target.tags,
+    });
   }
 
-  track(name: string, externalId?: string, properties?: Record<string, unknown>): Promise<void> {
+  addAliases(
+    aliases: Record<string, string>,
+    target?: { externalId?: string; anonymousId?: string },
+  ): Promise<void> {
+    const list = Object.entries(aliases).map(([label, value]) => ({ label, value }));
+    return this.sendOrQueue("POST", "/users", {
+      ...(target?.externalId ? { externalId: target.externalId } : {}),
+      ...(target?.anonymousId ? { anonymousId: target.anonymousId } : {}),
+      aliases: list,
+    });
+  }
+
+  track(
+    name: string,
+    target?: { externalId?: string; anonymousId?: string } | string,
+    properties?: Record<string, unknown>,
+  ): Promise<void> {
+    const extId = typeof target === "string" ? target : target?.externalId;
+    const anonId = typeof target === "object" ? target.anonymousId : undefined;
     return this.sendOrQueue("POST", "/events", {
       name,
-      ...(externalId ? { externalId } : {}),
+      ...(extId ? { externalId: extId } : {}),
+      ...(anonId ? { anonymousId: anonId } : {}),
       ...(properties ? { properties } : {}),
     });
   }
