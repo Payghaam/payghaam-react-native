@@ -1,6 +1,6 @@
 {
   "name": "@payghaam/react-native",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Payghaam SDK for React Native — push, identity, tags, and events",
   "license": "MIT",
   "author": "Payghaam <dev@payghaam.com>",

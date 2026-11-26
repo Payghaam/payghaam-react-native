@@ -15,6 +15,7 @@ Pod::Spec.new do |s|
   s.dependency "React-Core"
   # Canonical native SDK, published to the CocoaPods trunk as the `Payghaam`
   # pod. Resolved from the public CocoaPods spec repo, same as any other
-  # third-party pod.
-  s.dependency "Payghaam", ">= 0.1.5"
+  # third-party pod. The identity methods this wrapper calls reached trunk
+  # in 0.1.8. 0.1.5–0.1.7 were tagged and never published.
+  s.dependency "Payghaam", ">= 0.1.8"
 end
